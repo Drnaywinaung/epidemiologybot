@@ -478,31 +478,6 @@ const KNOWLEDGE_BASE = {
     "years of potential life lost": "A measure of premature mortality before a standard age (Chapter 4, p. 87).",
     "zoonosis": "A disease transmitted from animals to humans, e.g., rabies (Chapter 2, p. 43).",
     "z-score": "A measure of how many standard deviations a value is from the mean (Chapter 11, p. 233).",
-    "study_design": "Define the study population and outcome clearly (Chapter 7, p. 155)."
-      "Choose appropriate study designs based on the research question (e.g., cohort for incidence, case-control for rare diseases) (Chapter 8, p. 179)."
-      "Control confounding through matching, stratification, or statistical adjustment (Chapter 15, p. 303)."
-      "Use randomization in RCTs to reduce bias (Chapter 10, p. 198)."
-      "Ensure adequate sample size to achieve sufficient statistical power (Chapter 11, p. 234).",
-    "screening_programs": 
-      "Ensure the disease has a detectable preclinical phase and effective treatment (Chapter 18, p. 353)."
-      "Select tests with high sensitivity and specificity to reduce false results (Chapter 5, p. 116)."
-      "Evaluate cost-effectiveness and ethical implications (Chapter 18, p. 374)."
-      "Monitor lead-time and length-time biases in screening evaluations (Chapter 18, p. 374).",
-    "outbreak_investigation":
-      "Identify the index case and confirm the diagnosis (Chapter 2, p. 34)."
-      "Construct an epidemic curve to analyze the time distribution of cases (Chapter 2, p. 35)."
-      "Implement control measures like quarantine or vaccination (Chapter 2, p. 37)."
-      "Trace contacts to identify potential secondary cases (Chapter 2, p. 37).",
-    "data_interpretation":
-      "Use relative risk and odds ratio to assess exposure-outcome associations (Chapter 12, p. 255)."
-      "Apply statistical tests (e.g., p-values, confidence intervals) to evaluate significance (Chapter 11, p. 233)."
-      "Consider study limitations, such as sample size or generalizability (Chapter 15, p. 303)."
-      "Interpret findings in the context of biological plausibility and existing evidence (Chapter 14, p. 286).",
-    "ethical_considerations":
-      "Obtain informed consent from all study participants (Chapter 20, p. 395)."
-      "Protect participant confidentiality and data privacy (Chapter 20, p. 395)."
-      "Ensure equitable selection of study participants to avoid bias (Chapter 20, p. 416)."
-      "Disclose potential conflicts of interest in research (Chapter 20, p. 413)."
 };
 // This line makes the KNOWLEDGE_BASE object available to other files that import it.
 module.exports = KNOWLEDGE_BASE;
