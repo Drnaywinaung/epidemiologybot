@@ -1,6 +1,5 @@
 // A dictionary of epidemiology terms and their definitions, converted from the Python bot.
 const KNOWLEDGE_BASE = {
- const KNOWLEDGE_BASE = {
       "absolute risk": "The probability of an event occurring in a specific group over a period (Chapter 12, p. 254).",
     "absolute risk reduction": "The difference in event rates between control and intervention groups, often used in clinical trials (Chapter 10, p. 213).",
     "accuracy": "The degree to which a measurement or estimate represents the true value of the attribute being measured (Chapter 5, p. 94).",
