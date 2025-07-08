@@ -32,38 +32,74 @@ if (isProduction) {
 
 console.log('Epidemiology Bot server started...');
 
+/**
+ * Sends a Telegram message, splitting it into chunks if it exceeds the maximum length.
+ * @param {number} chatId - The ID of the chat to send the message to.
+ * @param {string} text - The text content of the message.
+ * @param {object} botInstance - The TelegramBot instance.
+ * @param {object} [options] - Optional parameters for the message (e.g., parse_mode).
+ */
+async function sendTelegramMessageSafely(chatId, text, botInstance, options = {}) {
+    const MAX_MESSAGE_LENGTH = 4096; // Telegram's max for regular text messages
+
+    if (text.length <= MAX_MESSAGE_LENGTH) {
+        await botInstance.sendMessage(chatId, text, options);
+    } else {
+        // Split the text into chunks
+        let startIndex = 0;
+        while (startIndex < text.length) {
+            const endIndex = Math.min(startIndex + MAX_MESSAGE_LENGTH, text.length);
+            const chunk = text.substring(startIndex, endIndex);
+
+            // Send each chunk
+            await botInstance.sendMessage(chatId, chunk, options);
+
+            // Optional: Add a small delay between sending chunks to avoid potential rate limits
+            // For very large messages or frequent sends, consider uncommenting this.
+            // await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay
+
+            startIndex = endIndex;
+        }
+    }
+}
+
+
 // --- Bot Command Handlers ---
-bot.onText(/\/start|\/help/, (msg) => {
+bot.onText(/\/start|\/help/, async (msg) => { // Made async to use await with sendTelegramMessageSafely
     const chatId = msg.chat.id;
     const userName = msg.from.first_name;
     const availableTopics = Object.keys(KNOWLEDGE_BASE).sort().join(', ');
     const welcomeMessage = `Hello, ${userName}! 👋\n\nI am a bot with knowledge from a glossary of epidemiology terms.\n\nYou can ask me to define any of the following topics:\n• ${availableTopics}`;
-    bot.sendMessage(chatId, welcomeMessage);
+    
+    // Use the safe function for sending messages
+    await sendTelegramMessageSafely(chatId, welcomeMessage, bot);
 });
 
 // --- Main Message Handler with Search Logic ---
-bot.on('message', (msg) => {
+bot.on('message', async (msg) => { // Made async to use await with sendTelegramMessageSafely
     if (msg.text && msg.text.startsWith('/')) return; // Ignore commands
 
     const chatId = msg.chat.id;
     const userMessage = msg.text.trim().toLowerCase();
 
     // Step 1: Prioritize searching within the terms (keywords)
-    const termMatches = Object.keys(KNOWLEDGE_BASE).filter(keyword => 
+    const termMatches = Object.keys(KNOWLEDGE_BASE).filter(keyword =>
         keyword.toLowerCase().includes(userMessage)
     );
 
     if (termMatches.length > 0) {
-        termMatches.slice(0, 5).forEach(keyword => {
-            bot.sendMessage(chatId, KNOWLEDGE_BASE[keyword], { parse_mode: 'Markdown' });
-        });
+        // Limit to 5 matches to avoid overwhelming the user
+        for (const keyword of termMatches.slice(0, 5)) {
+            // Use the safe function for sending messages
+            await sendTelegramMessageSafely(chatId, KNOWLEDGE_BASE[keyword], bot, { parse_mode: 'Markdown' });
+        }
         return;
     }
 
     // Step 2: Fallback to searching within definitions
     const searchWords = userMessage.replace(/[^\w\s]/g, '').split(/\s+/).filter(Boolean);
     if (searchWords.length === 0) {
-        bot.sendMessage(chatId, "Please provide some keywords to search for.");
+        await sendTelegramMessageSafely(chatId, "Please provide some keywords to search for.", bot);
         return;
     }
     
@@ -78,11 +114,13 @@ bot.on('message', (msg) => {
 
     if (definitionMatches.length > 0) {
         definitionMatches.sort((a, b) => b.score - a.score);
-        definitionMatches.slice(0, 5).forEach(match => {
-            bot.sendMessage(chatId, KNOWLEDGE_BASE[match.keyword], { parse_mode: 'Markdown' });
-        });
+        // Limit to 5 matches
+        for (const match of definitionMatches.slice(0, 5)) {
+            // Use the safe function for sending messages
+            await sendTelegramMessageSafely(chatId, KNOWLEDGE_BASE[match.keyword], bot, { parse_mode: 'Markdown' });
+        }
     } else {
-        bot.sendMessage(chatId, "I'm sorry, I don't have information on that topic. Please try asking about one of the keywords mentioned in /help.");
+        await sendTelegramMessageSafely(chatId, "I'm sorry, I don't have information on that topic. Please try asking about one of the keywords mentioned in /help.", bot);
     }
 });
 
