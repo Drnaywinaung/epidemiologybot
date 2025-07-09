@@ -26,13 +26,16 @@ const webhookBase = `/bot${token}`;
 let bot;
 
 if (isProduction) {
-    const webHookUrl = process.env.WEBHOOK_URL; // This should be just your Railway domain, e.g., https://your-app.up.railway.app
+    // WEBHOOK_URL environment variable MUST be set to JUST the Railway public domain, e.g., https://your-app.up.railway.app
+    const webHookUrl = process.env.WEBHOOK_URL; 
     if (!webHookUrl) {
         console.error("FATAL ERROR: WEBHOOK_URL must be set for production.");
         process.exit(1);
     }
     
-    const fullWebhookUrl = `${webHookUrl}${webhookBase}`; // Full URL Telegram will call
+    // Construct the full webhook URL that Telegram will call
+    // This will correctly form: https://your-app.railway.app/bot<token>
+    const fullWebhookUrl = `${webHookUrl}${webhookBase}`; 
 
     // Initialize bot with webhook options
     bot = new TelegramBot(token, {
@@ -47,7 +50,7 @@ if (isProduction) {
     bot.setWebHook(fullWebhookUrl, {
         drop_pending_updates: true // Good practice to drop old updates on redeploy
     });
-    console.log(`Webhook set to ${fullWebhookUrl}`);
+    console.log(`Webhook set to ${fullWebhookUrl}`); // This will now log the CORRECT URL
 
     // Link TelegramBot to Express app. This is the crucial part.
     // The webhookBase (e.g., /bot<token>) is the path that bot.webhookCallback expects
@@ -69,7 +72,10 @@ app.get('/', (req, res) => {
 
 /**
  * Sends a Telegram message, splitting it into chunks if it exceeds the maximum length.
- * ... (rest of your sendTelegramMessageSafely function)
+ * @param {number} chatId - The ID of the chat to send the message to.
+ * @param {string} text - The text content of the message.
+ * @param {object} botInstance - The TelegramBot instance.
+ * @param {object} [options] - Optional parameters for the message (e.g., parse_mode).
  */
 async function sendTelegramMessageSafely(chatId, text, botInstance, options = {}) {
     const MAX_MESSAGE_LENGTH = 4096; // Telegram's max for regular text messages
@@ -88,8 +94,12 @@ async function sendTelegramMessageSafely(chatId, text, botInstance, options = {}
 }
 
 
+// Assuming KNOWLEDGE_BASE is imported/defined elsewhere, e.g., in knowledgeBase.js
+// If it's not, you'll need to ensure it's accessible here.
+const KNOWLEDGE_BASE = require('./knowledgeBase.js');
+
+
 // --- Bot Command Handlers ---
-// ... (Your existing bot.onText and bot.on('message') handlers)
 bot.onText(/\/start|\/help/, async (msg) => {
     const chatId = msg.chat.id;
     const userName = msg.from.first_name;
@@ -98,6 +108,7 @@ bot.onText(/\/start|\/help/, async (msg) => {
     await sendTelegramMessageSafely(chatId, welcomeMessage, bot);
 });
 
+// --- Main Message Handler with Search Logic ---
 bot.on('message', async (msg) => {
     if (msg.text && msg.text.startsWith('/')) return; // Ignore commands
 
@@ -142,5 +153,5 @@ bot.on('message', async (msg) => {
 
 
 // --- Server Listener ---
-const PORT = process.env.PORT || 10000;
+const PORT = process.env.PORT || 10000; // Use Railway's port or fallback for local dev
 app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
