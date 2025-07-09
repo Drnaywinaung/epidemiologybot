@@ -4,7 +4,6 @@ require('dotenv').config();
 // Import necessary libraries
 const TelegramBot = require('node-telegram-bot-api');
 const express = require('express');
-const KNOWLEDGE_BASE = require('./knowledgeBase.js');
 
 // --- Configuration ---
 const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -13,31 +12,64 @@ if (!token) {
     process.exit(1);
 }
 
-// --- Bot Setup ---
-// Use webhooks for production (on Render) and polling for local development
 const isProduction = process.env.NODE_ENV === 'production';
-const bot = isProduction ? new TelegramBot(token) : new TelegramBot(token, { polling: true });
 
-// Setup Webhook for Render
+// Initialize Express app
+const app = express();
+app.use(express.json()); // Essential for parsing incoming Telegram updates
+
+// Define the base path for your webhook that the bot library expects
+// This is typically '/bot' followed by the token
+const webhookBase = `/bot${token}`; 
+
+// --- Bot Setup ---
+let bot;
+
 if (isProduction) {
-    const webHookUrl = process.env.WEBHOOK_URL;
+    const webHookUrl = process.env.WEBHOOK_URL; // This should be just your Railway domain, e.g., https://your-app.up.railway.app
     if (!webHookUrl) {
         console.error("FATAL ERROR: WEBHOOK_URL must be set for production.");
         process.exit(1);
     }
-    const fullWebhook = `${webHookUrl}/api/webhook/${token}`;
-    bot.setWebHook(fullWebhook);
-    console.log(`Webhook set to ${fullWebhook}`);
+    
+    const fullWebhookUrl = `${webHookUrl}${webhookBase}`; // Full URL Telegram will call
+
+    // Initialize bot with webhook options
+    bot = new TelegramBot(token, {
+        webHook: {
+            port: process.env.PORT, // Railway's assigned port
+            host: '0.0.0.0', // Listen on all interfaces
+            autoSsl: true // Use true if Railway provides SSL
+        }
+    });
+
+    // Set the webhook for Telegram
+    bot.setWebHook(fullWebhookUrl, {
+        drop_pending_updates: true // Good practice to drop old updates on redeploy
+    });
+    console.log(`Webhook set to ${fullWebhookUrl}`);
+
+    // Link TelegramBot to Express app. This is the crucial part.
+    // The webhookBase (e.g., /bot<token>) is the path that bot.webhookCallback expects
+    // the incoming POST requests to be on.
+    app.use(bot.webhookCallback(webhookBase)); 
+    
+} else {
+    // Local development: polling
+    bot = new TelegramBot(token, { polling: true });
 }
 
 console.log('Epidemiology Bot server started...');
 
+// --- Health Check Endpoint (Optional but Recommended) ---
+// This will respond to GET requests at your Railway domain root
+app.get('/', (req, res) => {
+    res.send('Bot server is running!');
+});
+
 /**
  * Sends a Telegram message, splitting it into chunks if it exceeds the maximum length.
- * @param {number} chatId - The ID of the chat to send the message to.
- * @param {string} text - The text content of the message.
- * @param {object} botInstance - The TelegramBot instance.
- * @param {object} [options] - Optional parameters for the message (e.g., parse_mode).
+ * ... (rest of your sendTelegramMessageSafely function)
  */
 async function sendTelegramMessageSafely(chatId, text, botInstance, options = {}) {
     const MAX_MESSAGE_LENGTH = 4096; // Telegram's max for regular text messages
@@ -45,19 +77,11 @@ async function sendTelegramMessageSafely(chatId, text, botInstance, options = {}
     if (text.length <= MAX_MESSAGE_LENGTH) {
         await botInstance.sendMessage(chatId, text, options);
     } else {
-        // Split the text into chunks
         let startIndex = 0;
         while (startIndex < text.length) {
             const endIndex = Math.min(startIndex + MAX_MESSAGE_LENGTH, text.length);
             const chunk = text.substring(startIndex, endIndex);
-
-            // Send each chunk
             await botInstance.sendMessage(chatId, chunk, options);
-
-            // Optional: Add a small delay between sending chunks to avoid potential rate limits
-            // For very large messages or frequent sends, consider uncommenting this.
-            // await new Promise(resolve => setTimeout(resolve, 100)); // 100ms delay
-
             startIndex = endIndex;
         }
     }
@@ -65,38 +89,32 @@ async function sendTelegramMessageSafely(chatId, text, botInstance, options = {}
 
 
 // --- Bot Command Handlers ---
-bot.onText(/\/start|\/help/, async (msg) => { // Made async to use await with sendTelegramMessageSafely
+// ... (Your existing bot.onText and bot.on('message') handlers)
+bot.onText(/\/start|\/help/, async (msg) => {
     const chatId = msg.chat.id;
     const userName = msg.from.first_name;
     const availableTopics = Object.keys(KNOWLEDGE_BASE).sort().join(', ');
     const welcomeMessage = `Hello, ${userName}! 👋\n\nI am a bot with knowledge from a glossary of epidemiology terms.\n\nYou can ask me to define any of the following topics:\n• ${availableTopics}`;
-    
-    // Use the safe function for sending messages
     await sendTelegramMessageSafely(chatId, welcomeMessage, bot);
 });
 
-// --- Main Message Handler with Search Logic ---
-bot.on('message', async (msg) => { // Made async to use await with sendTelegramMessageSafely
+bot.on('message', async (msg) => {
     if (msg.text && msg.text.startsWith('/')) return; // Ignore commands
 
     const chatId = msg.chat.id;
     const userMessage = msg.text.trim().toLowerCase();
 
-    // Step 1: Prioritize searching within the terms (keywords)
     const termMatches = Object.keys(KNOWLEDGE_BASE).filter(keyword =>
         keyword.toLowerCase().includes(userMessage)
     );
 
     if (termMatches.length > 0) {
-        // Limit to 5 matches to avoid overwhelming the user
         for (const keyword of termMatches.slice(0, 5)) {
-            // Use the safe function for sending messages
             await sendTelegramMessageSafely(chatId, KNOWLEDGE_BASE[keyword], bot, { parse_mode: 'Markdown' });
         }
         return;
     }
 
-    // Step 2: Fallback to searching within definitions
     const searchWords = userMessage.replace(/[^\w\s]/g, '').split(/\s+/).filter(Boolean);
     if (searchWords.length === 0) {
         await sendTelegramMessageSafely(chatId, "Please provide some keywords to search for.", bot);
@@ -114,9 +132,7 @@ bot.on('message', async (msg) => { // Made async to use await with sendTelegramM
 
     if (definitionMatches.length > 0) {
         definitionMatches.sort((a, b) => b.score - a.score);
-        // Limit to 5 matches
         for (const match of definitionMatches.slice(0, 5)) {
-            // Use the safe function for sending messages
             await sendTelegramMessageSafely(chatId, KNOWLEDGE_BASE[match.keyword], bot, { parse_mode: 'Markdown' });
         }
     } else {
@@ -124,15 +140,7 @@ bot.on('message', async (msg) => { // Made async to use await with sendTelegramM
     }
 });
 
-// --- Webhook Server (for Production on Render) ---
-if (isProduction) {
-    const app = express();
-    app.use(express.json());
-    app.get('/', (req, res) => res.send('Bot is live!'));
-    app.post(`/api/webhook/${token}`, (req, res) => {
-        bot.processUpdate(req.body);
-        res.sendStatus(200);
-    });
-    const PORT = process.env.PORT || 10000;
-    app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
-}
+
+// --- Server Listener ---
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => console.log(`Server listening on port ${PORT}`));
