@@ -378,4 +378,5 @@ const KNOWLEDGE_BASE = {
   "Zoonosis": " It refers to an infectious disease that is transmissible from animals to humans.",
   "Z-score": " It indicates how many standard deviations an element is from the mean."
 }
+
 module.exports = KNOWLEDGE_BASE;
